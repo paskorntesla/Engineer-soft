@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Pump Sim">
+    
+    <title>Engineering Simulation: Prod, CIP & Mixing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <style>
+        /* Engineering Grid Background */
+        body { 
+            font-family: 'Sarabun', sans-serif; 
+            -webkit-tap-highlight-color: transparent;
+            background-color: #f1f5f9; /* Slate 100 */
+            background-image: linear-gradient(#cbd5e1 1px, transparent 1px), linear-gradient(90deg, #cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        
+        /* Monospace font for numbers */
+        .font-mono-num { font-family: 'JetBrains Mono', monospace; }
+
+        .input-label { font-size: 0.85rem; color: #475569; font-weight: 700; margin-bottom: 0.35rem; display: block; letter-spacing: 0.02em; }
+        .input-field { 
+            width: 100%; 
+            padding: 0.6rem; 
+            border: 1px solid #cbd5e1; 
+            border-radius: 0.375rem; 
+            font-size: 16px; 
+            background-color: #ffffff; 
+            appearance: none; 
+            transition: all 0.2s;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .input-field:focus { 
+            border-color: #3b82f6; 
+            outline: none; 
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); 
+        }
+        
+        /* Slider styling */
+        input[type=range] { 
+            height: 6px; 
+            -webkit-appearance: none; 
+            appearance: none; /* FIXED: Added standard property */
+            margin: 12px 0; 
+            width: 100%; 
+            background: transparent; 
+        }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: #cbd5e1; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb { height: 18px; width: 18px; border-radius: 50%; background: #0f172a; cursor: pointer; -webkit-appearance: none; margin-top: -6px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); border: 2px solid white; }
+
+        .gauge-container { height: 12px; background: #334155; border-radius: 6px; overflow: hidden; position: relative; }
+        .gauge-fill { height: 100%; transition: width 0.5s ease-out, background-color 0.3s; }
+
+        /* Modern Tabs */
+        .tab-btn { padding: 8px 16px; border-radius: 6px; font-weight: 600; font-size: 0.85rem; transition: all 0.2s; color: #94a3b8; }
+        .tab-btn:hover { color: #f1f5f9; background-color: rgba(255,255,255,0.1); }
+        .tab-btn.active { 
+            background-color: #3b82f6; 
+            color: white; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2); /* FIXED: Changed shadow to box-shadow */
+        }
+
+        /* Card Styling */
+        .eng-card { background: white; border: 1px solid #e2e8f0; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); }
+        .eng-card-header { border-bottom: 1px solid #f1f5f9; padding-bottom: 0.75rem; margin-bottom: 1rem; }
+
+        /* Dark Result Panel */
+        .result-panel { background: #0f172a; color: white; border-radius: 0.75rem; border: 1px solid #1e293b; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3); }
+
+        /* PDF Styles */
+        #pdf-report { display: none; background: white; padding: 40px; font-family: 'Sarabun', sans-serif; color: #000; }
+        .pdf-header { border-bottom: 2px solid #1e293b; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
+        .pdf-section { margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+        .pdf-section-header { background: #f1f5f9; padding: 8px 15px; font-weight: bold; color: #334155; border-bottom: 1px solid #e2e8f0; }
+        .pdf-row { display: flex; border-bottom: 1px solid #f1f5f9; }
+        .pdf-row:last-child { border-bottom: none; }
+        .pdf-label { width: 40%; padding: 8px 15px; background: #f8fafc; font-size: 0.9rem; color: #64748b; }
+        .pdf-value { width: 60%; padding: 8px 15px; font-weight: bold; color: #0f172a; }
+        .pdf-result-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 20px; }
+    </style>
+</head>
+<body class="pb-10 env-safe-area-inset-bottom">
+
+    <!-- Header -->
+    <header class="bg-slate-900 text-white p-3 shadow-lg sticky top-0 z-50 pt-safe-top border-b-4 border-yellow-500">
+        <div class="container mx-auto">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-3">
+                <div class="text-center md:text-left">
+                    <h1 class="text-lg md:text-xl font-bold tracking-wide"><i class="fa-solid fa-gears text-yellow-400 mr-2"></i>ENGINEERING SIMULATION</h1>
+                    <p class="text-[10px] md:text-xs text-slate-400 uppercase tracking-wider">For Purefoodsgroupthailand | System Analysis</p>
+                </div>
+                <div class="flex gap-2 overflow-x-auto pb-1 max-w-full">
+                    <div class="flex bg-slate-800 p-1 rounded-lg shrink-0 border border-slate-700">
+                        <button onclick="switchTab('production')" id="btn-production" class="tab-btn active mr-1 whitespace-nowrap"><i class="fa-solid fa-industry mr-1"></i> Prod</button>
+                        <button onclick="switchTab('cip')" id="btn-cip" class="tab-btn mr-1 whitespace-nowrap"><i class="fa-solid fa-soap mr-1"></i> CIP</button>
+                        <button onclick="switchTab('mixing')" id="btn-mixing" class="tab-btn whitespace-nowrap"><i class="fa-solid fa-blender mr-1"></i> Mixing</button>
+                    </div>
+                    <button onclick="exportPDF()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-1 rounded-lg text-sm font-bold shadow transition flex items-center shrink-0 border border-red-800">
+                        <i class="fa-solid fa-file-pdf mr-2"></i> PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- PROD TAB -->
+    <div id="tab-content-production" class="container mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 mt-2">
+        <div class="lg:col-span-4 space-y-5">
+            <!-- Fluid -->
+            <div class="eng-card p-5">
+                <h2 class="text-lg font-bold text-slate-700 eng-card-header flex items-center">
+                    <span class="bg-blue-600 w-1 h-5 mr-3 rounded-full"></span> 1. Product Data
+                </h2>
+                <div class="mb-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <label class="input-label mb-1 text-slate-600"><i class="fa-solid fa-database mr-1"></i>Fluid Database</label>
+                    <select id="fluidSelect" class="input-field" onchange="selectFluid()">
+                        <option value="water" selected>น้ำเปล่า (Water)</option>
+                        <option value="custom">กำหนดเอง (Custom)</option>
+                        <option value="sauce_thin">ซอสปรุงรส (Thin Sauce)</option>
+                        <option value="ketchup">ซอสมะเขือเทศ (Ketchup)</option>
+                        <option value="mayo">มายองเนส (Mayonnaise)</option>
+                        <option value="honey">น้ำผึ้ง (Honey)</option>
+                        <option value="glucose">กลูโคสไซรัป (Glucose)</option>
+                        <option value="paste">พริกแกง/Paste</option>
+                    </select>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="input-label">Flow Rate (L/hr)</label>
+                        <div class="flex items-center">
+                            <input type="number" id="flowRate" value="2000" class="input-field font-mono-num font-bold text-blue-700 text-lg">
+                        </div>
+                        <input type="range" min="500" max="10000" step="100" value="2000" class="w-full mt-2" oninput="document.getElementById('flowRate').value = this.value; calculateProd();">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><label class="input-label">Viscosity (cP)</label><input type="number" id="viscosity" value="1" class="input-field font-mono-num" onchange="document.getElementById('fluidSelect').value='custom'; calculateProd();"></div>
+                        <div><label class="input-label">Density (kg/m³)</label><input type="number" id="density" value="1000" class="input-field font-mono-num" onchange="document.getElementById('fluidSelect').value='custom'; calculateProd();"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Piping -->
+            <div class="eng-card p-5">
+                <h2 class="text-lg font-bold text-slate-700 eng-card-header flex items-center">
+                    <span class="bg-orange-500 w-1 h-5 mr-3 rounded-full"></span> 2. Piping Configuration
+                </h2>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="input-label">Pipe Size (OD)</label>
+                            <select id="pipeSize" class="input-field" onchange="updatePipeID('prod')">
+                                <option value="25.4">1.0" (25.4mm)</option>
+                                <option value="38.1">1.5" (38.1mm)</option>
+                                <option value="50.8" selected>2.0" (51mm)</option>
+                                <option value="63.5">2.5" (63.5mm)</option>
+                                <option value="76.2">3.0" (76.2mm)</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </div>
+                        <div><label class="input-label">Actual ID (mm)</label><input type="number" id="pipeID" value="47.5" class="input-field font-mono-num"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><label class="input-label">Length (m)</label><input type="number" id="length" value="5" class="input-field font-mono-num"></div>
+                        <div><label class="input-label">Head (m)</label><input type="number" id="head" value="2" class="input-field font-mono-num"></div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div><label class="input-label">Elbows</label><input type="number" id="elbows" value="4" class="input-field font-mono-num"></div>
+                        <div><label class="input-label">Valves</label><input type="number" id="valves" value="4" class="input-field font-mono-num"></div>
+                        <div><label class="input-label">PHE Drop</label><input type="number" id="pheDrop" value="3.5" class="input-field font-mono-num"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Motor -->
+            <div class="eng-card p-5">
+                <h2 class="text-lg font-bold text-slate-700 eng-card-header flex items-center">
+                    <span class="bg-purple-600 w-1 h-5 mr-3 rounded-full"></span> 3. Motor Selection
+                </h2>
+                <div class="mb-3">
+                    <label class="input-label">JEC Pump Model</label>
+                    <select id="jecModel" class="input-field font-bold text-purple-800 bg-purple-50 border-purple-200" onchange="calculateProd()">
+                        <option value="ZL110">JEC ZL110 (Small)</option>
+                        <option value="ZL115" selected>JEC ZL115 (Medium)</option>
+                        <option value="ZL120">JEC ZL120 (Large)</option>
+                        <option value="ZL220">JEC ZL220 (Extra Large)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="input-label">Motor Power (kW)</label>
+                    <input type="number" id="selectedMotor" value="4.0" class="input-field font-bold font-mono-num text-purple-700 mb-2">
+                    <div class="grid grid-cols-4 gap-2">
+                        <button onclick="setMotor(2.2)" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded border border-slate-300 transition">2.2</button>
+                        <button onclick="setMotor(4.0)" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded border border-slate-300 transition">4.0</button>
+                        <button onclick="setMotor(5.5)" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded border border-slate-300 transition">5.5</button>
+                        <button onclick="setMotor(7.5)" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded border border-slate-300 transition">7.5</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loss -->
+            <div class="eng-card p-5">
+                <h2 class="text-lg font-bold text-slate-700 eng-card-header flex items-center">
+                    <span class="bg-pink-500 w-1 h-5 mr-3 rounded-full"></span> 4. Loss Analysis
+                </h2>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="input-label">Price (THB/kg)</label><input type="number" id="pricePerKg" value="50" class="input-field font-mono-num text-pink-600"></div>
+                    <div><label class="input-label">Equip Vol. (L)</label><input type="number" id="equipVolume" value="2" class="input-field font-mono-num"></div>
+                </div>
+            </div>
+            
+            <div class="eng-card p-5 bg-slate-50">
+                <div><label class="input-label text-red-600">Max Pressure Limit (Bar)</label><input type="number" id="maxPressure" value="12" class="input-field font-bold font-mono-num text-red-600 border-red-200" oninput="calculateProd()"></div>
+            </div>
+            <button onclick="calculateProd()" class="w-full bg-slate-800 hover:bg-slate-900 active:scale-[0.98] text-white font-bold py-4 rounded-xl shadow-lg text-lg transition flex justify-center items-center">
+                <i class="fa-solid fa-calculator mr-2"></i> CALCULATE
+            </button>
+        </div>
+
+        <div class="lg:col-span-8 space-y-6">
+            <!-- Pressure Monitor (Dark Theme) -->
+            <div class="result-panel p-6 relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-4 opacity-10"><i class="fa-solid fa-gauge-high text-9xl text-white"></i></div>
+                <div class="flex justify-between items-end mb-2 relative z-10">
+                    <h3 class="text-slate-400 font-bold uppercase text-xs tracking-widest">System Pressure Monitor</h3>
+                    <div id="pumpSpeedLabel" class="text-xs font-mono-num bg-slate-800 border border-slate-700 px-2 py-1 rounded text-cyan-400">0 RPM</div>
+                </div>
+                <div class="flex items-baseline gap-3 mb-6 relative z-10">
+                    <span id="totalPressure" class="text-7xl font-bold font-mono-num text-white tracking-tight">0.00</span>
+                    <span class="text-2xl text-slate-500 font-medium">Bar</span>
+                </div>
+                <div class="relative pt-1 z-10">
+                    <div class="flex mb-2 items-center justify-between text-xs font-semibold text-slate-500">
+                        <span>0 Bar</span><span id="limitLabel" class="text-red-400">Max: 12 Bar</span>
+                    </div>
+                    <div class="gauge-container shadow-inner border border-slate-700">
+                        <div id="gaugeFill" class="gauge-fill bg-gradient-to-r from-green-500 to-green-400" style="width: 0%"></div>
+                    </div>
+                    <div id="overPressureAlert" class="hidden mt-4 bg-red-900/50 border border-red-500/50 text-red-200 p-3 rounded text-sm animate-pulse flex items-center">
+                        <i class="fa-solid fa-triangle-exclamation mr-2 text-red-500"></i> <b>WARNING: SYSTEM OVERPRESSURE!</b>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loss Card (Data Grid) -->
+            <div class="eng-card p-0 overflow-hidden">
+                <div class="bg-slate-50 p-4 border-b border-slate-200 flex justify-between items-center">
+                    <h3 class="font-bold text-slate-700 flex items-center"><i class="fa-solid fa-droplet text-pink-500 mr-2"></i>Product Hold-up & Loss</h3>
+                </div>
+                <div class="grid grid-cols-3 divide-x divide-slate-100">
+                    <div class="p-4 text-center">
+                        <div class="text-xs text-slate-400 uppercase font-bold mb-1">Volume</div>
+                        <div class="text-2xl font-bold font-mono-num text-slate-700"><span id="totalVolume">0</span> <span class="text-xs text-slate-400">L</span></div>
+                    </div>
+                    <div class="p-4 text-center">
+                        <div class="text-xs text-slate-400 uppercase font-bold mb-1">Weight</div>
+                        <div class="text-2xl font-bold font-mono-num text-slate-700"><span id="totalWeight">0</span> <span class="text-xs text-slate-400">kg</span></div>
+                    </div>
+                    <div class="p-4 text-center bg-pink-50/50">
+                        <div class="text-xs text-pink-400 uppercase font-bold mb-1">Loss Value</div>
+                        <div class="text-2xl font-bold font-mono-num text-pink-600"><span id="totalValue">0</span> <span class="text-xs">฿</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart & Motor Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Motor Panel (Dark Theme) -->
+                <div class="result-panel p-5 h-full flex flex-col justify-between">
+                    <div>
+                        <h4 class="font-bold text-slate-400 text-xs uppercase mb-4 tracking-wider"><i class="fa-solid fa-bolt mr-1"></i> Motor Status</h4>
+                        <div class="flex justify-between items-end mb-4">
+                            <span class="text-sm text-slate-300">Shaft Power Req.</span>
+                            <span class="font-bold font-mono-num text-2xl text-cyan-400"><span id="reqShaftPower">0</span> kW</span>
+                        </div>
+                    </div>
+                    <div class="bg-slate-800/50 border border-slate-700 p-4 rounded-lg">
+                         <div class="flex justify-between text-xs mb-2 text-slate-400">
+                             <span>Motor Size</span>
+                             <span class="text-yellow-400 font-bold font-mono-num"><span id="displaySelectedMotor">0</span> kW</span>
+                         </div>
+                         <div class="flex justify-between text-xs mb-1 text-slate-300">
+                             <span>Load</span>
+                             <span id="motorLoadText" class="font-bold font-mono-num">0%</span>
+                         </div>
+                         <div class="w-full bg-slate-700 rounded-full h-2 mt-1 overflow-hidden">
+                             <div id="motorLoadBar" class="bg-gradient-to-r from-green-500 to-green-400 h-2 rounded-full" style="width: 0%"></div>
+                         </div>
+                         <div id="motorStatusText" class="text-[10px] text-center mt-2 text-green-400 font-bold tracking-wider">AVAILABLE</div>
+                    </div>
+                </div>
+
+                <!-- Chart Panel (Light Theme) -->
+                <div class="eng-card p-5 h-96 flex flex-col relative">
+                    <div class="flex justify-between items-center mb-2">
+                        <h4 class="font-bold text-slate-700 text-sm">System Analysis</h4>
+                        <div class="flex bg-slate-100 rounded p-1">
+                            <button onclick="setChartMode('breakdown')" id="btn-chart-bd" class="px-2 py-1 text-[10px] rounded bg-white shadow-sm text-slate-800 font-bold transition">Breakdown</button>
+                            <button onclick="setChartMode('curve')" id="btn-chart-cv" class="px-2 py-1 text-[10px] rounded text-slate-500 hover:text-slate-700 transition">Curve</button>
+                        </div>
+                    </div>
+                    <div class="flex-grow relative w-full h-full">
+                        <canvas id="breakdownChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CIP TAB -->
+    <div id="tab-content-cip" class="container mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 mt-2 hidden">
+        <div class="lg:col-span-4 space-y-5">
+            <div class="eng-card p-5 border-l-4 border-green-500">
+                <h2 class="text-lg font-bold text-slate-700 eng-card-header"><i class="fa-solid fa-soap text-green-500 mr-2"></i> CIP Process</h2>
+                
+                <div class="mb-4">
+                    <label class="input-label text-green-700">Inoxpa Pump Model</label>
+                    <select id="inoxpaModel" class="input-field font-bold text-green-700 bg-green-50 border-green-200" onchange="calculateCIP()">
+                        <option value="DinFood" selected>Din-Food Series</option>
+                        <option value="Hyginox">Hyginox SE Series</option>
+                        <option value="Estampinox">Estampinox EFI</option>
+                    </select>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 mb-4">
+                    <div class="text-xs font-bold text-slate-400 uppercase mb-2">Cleaning Fluid</div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="input-label">Viscosity</label><input type="number" id="cipViscosity" value="1.0" class="input-field font-mono-num"></div>
+                        <div><label class="input-label">Density</label><input type="number" id="cipDensity" value="1000" class="input-field font-mono-num"></div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 mb-4">
+                    <div class="flex justify-between items-center mb-2"><div class="text-xs font-bold text-slate-400">Centrifugal @ 2900 RPM</div></div>
+                    <div>
+                        <label class="input-label">Flow Rate (L/hr)</label>
+                        <input type="number" id="cipFlowRate" value="15000" class="input-field font-bold text-green-700 font-mono-num text-lg">
+                        <input type="range" min="5000" max="40000" step="500" value="15000" class="w-full mt-2 accent-green-600" oninput="document.getElementById('cipFlowRate').value = this.value; calculateCIP();">
+                    </div>
+                    <button onclick="setOptimalCIP()" class="mt-2 w-full py-2 bg-green-100 text-green-700 text-xs font-bold rounded hover:bg-green-200 border border-green-200"><i class="fa-solid fa-magic mr-1"></i> Auto-set 2.0 m/s</button>
+                </div>
+
+                <!-- CIP Piping -->
+                <div class="space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="input-label">Pipe Size</label>
+                            <select id="cipPipeSize" class="input-field" onchange="updatePipeID('cip')">
+                                <option value="25.4">1.0"</option>
+                                <option value="38.1">1.5"</option>
+                                <option value="50.8" selected>2.0"</option>
+                                <option value="63.5">2.5"</option>
+                                <option value="76.2">3.0"</option>
+                            </select>
+                        </div>
+                        <div><label class="input-label">ID (mm)</label><input type="number" id="cipPipeID" value="47.5" class="input-field font-mono-num"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                         <div><label class="input-label">Length (m)</label><input type="number" id="cipLength" value="20" class="input-field font-mono-num"></div>
+                         <div><label class="input-label">Head (m)</label><input type="number" id="cipHead" value="3" class="input-field font-mono-num"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="input-label">Elbows</label><input type="number" id="cipElbows" value="6" class="input-field font-mono-num"></div>
+                        <div><label class="input-label">Valves</label><input type="number" id="cipValves" value="4" class="input-field font-mono-num"></div>
+                    </div>
+                </div>
+            </div>
+            <button onclick="calculateCIP()" class="w-full bg-green-700 hover:bg-green-800 text-white font-bold py-4 rounded-xl shadow-lg text-lg transition">CALCULATE CIP</button>
+        </div>
+
+        <!-- CIP Results -->
+        <div class="lg:col-span-8 space-y-6">
+            <div class="eng-card p-6 border-t-4 border-green-500">
+                <div class="flex justify-between items-start mb-6">
+                    <div>
+                        <h3 class="text-slate-400 font-bold uppercase text-xs tracking-wider">Cleaning Status</h3>
+                        <h2 class="text-4xl font-bold text-slate-800 mt-1" id="cipStatusText">Effective</h2>
+                    </div>
+                    <div id="cipIcon" class="text-6xl text-green-500"><i class="fa-solid fa-check-circle"></i></div>
+                </div>
+
+                <div class="bg-slate-50 rounded-lg p-4 mb-6 border border-slate-200">
+                    <div class="flex justify-between text-sm mb-2 font-bold text-slate-600">
+                        <span>Velocity</span><span class="font-mono-num text-xl text-slate-800"><span id="cipVelocity">0.00</span> m/s</span>
+                    </div>
+                    <div class="w-full bg-slate-200 rounded-full h-3 overflow-hidden relative">
+                        <div class="absolute top-0 bottom-0 bg-red-400 w-0.5 z-10" style="left: 30%" title="Min 1.5 m/s"></div>
+                        <div id="cipVelBar" class="bg-green-500 h-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs text-slate-400 mt-1">
+                        <span>0</span><span class="text-red-500 font-bold">Target > 1.5 m/s</span><span>5.0</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 text-center">
+                        <div class="text-xs text-slate-400 uppercase font-bold">Flow Regime</div>
+                        <div class="text-2xl font-bold text-blue-700 mt-1" id="flowRegime">Turbulent</div>
+                        <div class="text-xs text-blue-500 mt-1 font-mono-num">Re: <span id="reynoldsNum">0</span></div>
+                    </div>
+                    <div class="bg-orange-50 p-4 rounded-lg border border-orange-100 text-center">
+                        <div class="text-xs text-slate-400 uppercase font-bold">Required Head</div>
+                        <div class="text-2xl font-bold text-orange-700 mt-1 font-mono-num"><span id="cipTotalHead">0</span> m</div>
+                        <div class="text-xs text-orange-500 mt-1 font-mono-num">Pressure: <span id="cipPressure">0</span> Bar</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CIP Curve -->
+            <div class="eng-card p-5 h-96 flex flex-col">
+                <h4 class="font-bold text-slate-700 text-sm mb-2">System Curve vs Inoxpa Pump Curve</h4>
+                <div class="flex-grow relative"><canvas id="cipChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MIXING TAB -->
+    <div id="tab-content-mixing" class="container mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 mt-2 hidden">
+        <div class="lg:col-span-4 space-y-5">
+            <!-- Mixing Settings -->
+            <div class="eng-card p-5 border-l-4 border-indigo-500">
+                <h2 class="text-lg font-bold text-slate-700 eng-card-header"><i class="fa-solid fa-blender text-indigo-500 mr-2"></i> Mixing Tank Design</h2>
+                
+                <div class="mb-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <label class="input-label mb-1">Product Data</label>
+                    <select id="mixFluidSelect" class="input-field bg-white" onchange="updateMixFluid()">
+                        <option value="water">น้ำเปล่า (Water)</option>
+                        <option value="sauce_thin">ซอสปรุงรส (Thin Sauce)</option>
+                        <option value="ketchup" selected>ซอสมะเขือเทศ (Ketchup)</option>
+                        <option value="mayo">มายองเนส (Mayonnaise)</option>
+                        <option value="honey">น้ำผึ้ง (Honey)</option>
+                        <option value="glucose">กลูโคสไซรัป (Glucose)</option>
+                        <option value="paste">พริกแกง/Paste</option>
+                    </select>
+                    <!-- UPDATED: Editable Inputs -->
+                    <div class="grid grid-cols-2 gap-3 mt-3">
+                        <div>
+                            <label class="input-label text-[10px] text-slate-400">VISCOSITY (cP)</label>
+                            <input type="number" id="mixViscosity" value="50000" class="input-field text-sm p-1 font-mono-num border-indigo-200 text-indigo-700 font-bold">
+                        </div>
+                        <div>
+                            <label class="input-label text-[10px] text-slate-400">DENSITY (kg/m³)</label>
+                            <input type="number" id="mixDensity" value="1150" class="input-field text-sm p-1 font-mono-num border-indigo-200 text-indigo-700 font-bold">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><label class="input-label">Radius (m)</label><input type="number" id="tankRadius" value="0.5" step="0.1" class="input-field font-mono-num"></div>
+                        <div><label class="input-label">Cyl. Height (m)</label><input type="number" id="tankHeight" value="1.5" step="0.1" class="input-field font-mono-num"></div>
+                    </div>
+                    <div><label class="input-label">Cone Height (m)</label><input type="number" id="coneHeight" value="0.2" step="0.1" class="input-field font-mono-num"></div>
+                    
+                    <div class="bg-indigo-50 p-3 rounded-lg border border-indigo-100 flex justify-between items-center">
+                        <label class="text-sm font-bold text-indigo-800">Total Volume</label>
+                        <span class="text-lg font-bold text-indigo-600 font-mono-num" id="tankVolText">1200 Liters</span>
+                    </div>
+                </div>
+            </div>
+            <button onclick="calculateMixing()" class="w-full bg-indigo-700 hover:bg-indigo-800 text-white font-bold py-4 rounded-xl shadow-lg text-lg transition">DESIGN AGITATOR</button>
+        </div>
+
+        <div class="lg:col-span-8 space-y-6">
+            <!-- Mixing Result Card -->
+            <div class="eng-card p-0 grid grid-cols-1 md:grid-cols-2 overflow-hidden">
+                <!-- Visual -->
+                <div class="flex justify-center items-center bg-slate-100 p-4 border-r border-slate-200" style="min-height: 350px;">
+                    <canvas id="mixingCanvas" width="280" height="320"></canvas>
+                </div>
+                
+                <!-- Specs -->
+                <div class="p-6 space-y-5">
+                    <h3 class="font-bold text-slate-700 border-b border-slate-100 pb-2">Specification</h3>
+                    
+                    <div>
+                        <div class="text-xs text-slate-400 uppercase font-bold">Agitator Type</div>
+                        <div class="text-2xl font-bold text-indigo-700" id="recImpeller">Anchor</div>
+                        <div class="text-xs text-slate-500 font-mono-num">Diameter: <span id="recImpellerDia">0.9</span> m</div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-slate-50 p-3 rounded border border-slate-200">
+                            <div class="text-xs text-slate-400 uppercase">Power</div>
+                            <div class="text-xl font-bold text-slate-800 font-mono-num"><span id="recMotor">2.2</span> kW</div>
+                        </div>
+                        <div class="bg-slate-50 p-3 rounded border border-slate-200">
+                            <div class="text-xs text-slate-400 uppercase">Speed</div>
+                            <div class="text-xl font-bold text-slate-800 font-mono-num"><span id="recSpeed">25</span> RPM</div>
+                        </div>
+                    </div>
+
+                    <!-- TORQUE BOX -->
+                    <div class="bg-orange-50 p-3 rounded border border-orange-100 shadow-sm">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <div class="text-xs text-orange-400 uppercase font-bold">Required Torque</div>
+                                <div class="text-2xl font-bold text-orange-600 font-mono-num"><span id="recTorque">0</span> Nm</div>
+                            </div>
+                            <div class="text-orange-300 text-3xl opacity-50"><i class="fa-solid fa-rotate-right"></i></div>
+                        </div>
+                    </div>
+
+                    <div class="text-sm">
+                        <div class="text-xs text-slate-400 uppercase font-bold mb-1">Recommendation</div>
+                        <div class="font-bold text-slate-600" id="recGear">High Ratio Gearbox Required</div>
+                    </div>
+
+                    <div class="pt-3 border-t border-slate-100 text-xs flex justify-between">
+                        <span class="text-slate-400"><i class="fa-solid fa-pump-medical mr-1"></i> <span id="recPump">Lobe Pump</span></span>
+                        <span class="text-slate-400 font-mono-num">Pipe: <span id="recPipe">2.0"</span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PDF Template (Hidden) -->
+    <div id="pdf-report">
+        <!-- PDF Content kept minimal for brevity, logic exists in JS -->
+        <div class="pdf-header">
+            <div><h1 style="font-size: 24px; font-weight: bold; color: #1e293b;">ENGINEERING REPORT</h1><p style="color: #64748b;">Purefoodsgroupthailand | System Analysis</p></div>
+            <div style="text-align: right;"><p id="reportDate" style="color: #94a3b8;"></p></div>
+        </div>
+        <div class="pdf-result-box">
+            <div style="font-size: 12px; text-transform: uppercase;">Total Pressure</div>
+            <div style="font-size: 48px; font-weight: bold;"><span id="pdfTotalPressure">0.00</span> Bar</div>
+        </div>
+        <!-- Sections populated by JS -->
+        <div class="pdf-section"><div class="pdf-section-header">Parameters</div>
+            <div class="pdf-row"><div class="pdf-label">Product</div><div class="pdf-value" id="pdfProdName">-</div></div>
+            <div class="pdf-row"><div class="pdf-label">Flow Rate</div><div class="pdf-value"><span id="pdfFlow">0</span> L/hr</div></div>
+            <div class="pdf-row"><div class="pdf-label">Pump Model</div><div class="pdf-value" id="pdfPumpModel">Rotary Lobe</div></div>
+        </div>
+        <div class="pdf-section"><div class="pdf-section-header">Results</div>
+            <div class="pdf-row"><div class="pdf-label">Shaft Power</div><div class="pdf-value"><span id="pdfShaftPower">0</span> kW</div></div>
+            <div class="pdf-row"><div class="pdf-label">Motor Load</div><div class="pdf-value"><span id="pdfLoad">0</span>%</div></div>
+        </div>
+        <div style="text-align: center; margin-top: 20px;"><img id="pdfChartImg" style="max-width: 300px;"></div>
+    </div>
+
+    <script>
+        let mainChart = null;
+        let cipChart = null;
+        let currentChartMode = 'breakdown';
+
+        // --- Data Models ---
+        const jecModels = {
+            'ZL110': { maxFlow: 5000, disp: 0.15 }, 
+            'ZL115': { maxFlow: 12000, disp: 0.30 }, 
+            'ZL120': { maxFlow: 20000, disp: 0.50 },
+            'ZL220': { maxFlow: 30000, disp: 0.85 }
+        };
+        const inoxpaModels = {
+            'DinFood': { maxHead: 50, k: 0.00000005, name: 'Din-Food' }, 
+            'Hyginox': { maxHead: 40, k: 0.00000008, name: 'Hyginox SE' },
+            'Estampinox': { maxHead: 30, k: 0.0000001, name: 'Estampinox' }
+        };
+        const fluids = {
+            'water': { visc: 1, dens: 1000, name: 'น้ำเปล่า' },
+            'sauce_thin': { visc: 500, dens: 1100, name: 'ซอสปรุงรส' },
+            'ketchup': { visc: 50000, dens: 1150, name: 'ซอสมะเขือเทศ' },
+            'mayo': { visc: 200000, dens: 920, name: 'มายองเนส' },
+            'honey': { visc: 10000, dens: 1420, name: 'น้ำผึ้ง' },
+            'glucose': { visc: 60000, dens: 1400, name: 'กลูโคสไซรัป' },
+            'paste': { visc: 80000, dens: 1200, name: 'พริกแกง' },
+            'custom': { visc: 0, dens: 0, name: 'Custom' }
+        };
+
+        window.addEventListener('load', () => {
+            calculateProd();
+            calculateCIP();
+            updateMixFluid(); 
+            calculateMixing();
+            document.querySelectorAll('input, select').forEach(el => {
+                if(el.id.startsWith('cip') || el.id === 'inoxpaModel') {
+                    el.addEventListener('input', calculateCIP);
+                } else if (el.id.startsWith('mix') || el.id.startsWith('tank') || el.id === 'coneHeight') {
+                    el.addEventListener('input', calculateMixing);
+                    el.addEventListener('change', calculateMixing);
+                } else if (el.id !== 'fluidSelect') {
+                    el.addEventListener('input', calculateProd);
+                }
+            });
+        });
+
+        function selectFluid() {
+            const val = document.getElementById('fluidSelect').value;
+            if(val !== 'custom' && fluids[val]) {
+                document.getElementById('viscosity').value = fluids[val].visc;
+                document.getElementById('density').value = fluids[val].dens;
+                calculateProd();
+            }
+        }
+
+        function switchTab(mode) {
+            ['production', 'cip', 'mixing'].forEach(m => {
+                document.getElementById('btn-' + m).className = (m === mode) ? 'tab-btn active mr-1 whitespace-nowrap' : 'tab-btn mr-1 whitespace-nowrap';
+                document.getElementById('tab-content-' + m).classList.toggle('hidden', m !== mode);
+            });
+            if(mode === 'production') calculateProd();
+            else if(mode === 'cip') calculateCIP();
+            else calculateMixing();
+        }
+
+        function updatePipeID(mode) {
+            const map = { "25.4": 22.6, "38.1": 35.6, "50.8": 47.5, "63.5": 60.2, "76.2": 72.9 };
+            const selectId = mode === 'prod' ? 'pipeSize' : (mode === 'cip' ? 'cipPipeSize' : '');
+            const inputId = mode === 'prod' ? 'pipeID' : (mode === 'cip' ? 'cipPipeID' : '');
+            if(!selectId) return;
+            const val = document.getElementById(selectId).value;
+            if (val !== 'custom') {
+                document.getElementById(inputId).value = map[val];
+                if(mode === 'prod') calculateProd(); else calculateCIP();
+            }
+        }
+
+        function setMotor(val) { document.getElementById('selectedMotor').value = val; calculateProd(); }
+        
+        function setChartMode(mode) {
+            currentChartMode = mode;
+            const btnBd = document.getElementById('btn-chart-bd');
+            const btnCv = document.getElementById('btn-chart-cv');
+            if(mode === 'breakdown') {
+                btnBd.className = "px-2 py-1 text-[10px] rounded bg-white shadow-sm text-slate-800 font-bold transition";
+                btnCv.className = "px-2 py-1 text-[10px] rounded text-slate-500 hover:text-slate-700 transition";
+            } else {
+                btnCv.className = "px-2 py-1 text-[10px] rounded bg-white shadow-sm text-slate-800 font-bold transition";
+                btnBd.className = "px-2 py-1 text-[10px] rounded text-slate-500 hover:text-slate-700 transition";
+            }
+            calculateProd();
+        }
+
+        // --- PRODUCTION CALC ---
+        function calculateProd() {
+            const inputs = getProdInputs();
+            const Q_m3s = inputs.Q / (3600000); 
+            const mu = inputs.mu / 1000;
+            const D = inputs.D / 1000;
+            const Area = Math.PI * Math.pow(D/2, 2);
+            const V = inputs.Q / (Area * 3600000); 
+
+            const Le = inputs.L + (1.2 * inputs.elbows) + (0.8 * inputs.valves);
+            const dP_Pa = (32 * mu * Le * V) / Math.pow(D, 2);
+            const P_pipe = dP_Pa / 1e5;
+            const P_static = (inputs.rho * 9.81 * inputs.head) / 1e5;
+            const P_total = P_pipe + P_static + inputs.phe;
+
+            const P_hyd = (inputs.Q/3600 * P_total * 100) / 1000;
+            const P_shaft = P_hyd / 0.55; 
+            const load = (P_shaft / inputs.motor) * 100;
+
+            const model = jecModels[inputs.jec];
+            const pumpSpeed = inputs.Q / (model.disp * 60);
+
+            document.getElementById('totalPressure').innerText = P_total.toFixed(2);
+            document.getElementById('pumpSpeedLabel').innerText = `${Math.round(pumpSpeed)} RPM`;
+            document.getElementById('reqShaftPower').innerText = P_shaft.toFixed(2);
+            document.getElementById('displaySelectedMotor').innerText = inputs.motor.toFixed(1);
+            document.getElementById('motorLoadText').innerText = load.toFixed(1) + "%";
+            document.getElementById('motorLoadBar').style.width = Math.min(load, 100) + "%";
+            
+            const loadBar = document.getElementById('motorLoadBar');
+            if(load > 100) loadBar.className = "h-2 rounded-full bg-gradient-to-r from-red-600 to-red-500";
+            else if(load > 85) loadBar.className = "h-2 rounded-full bg-gradient-to-r from-yellow-500 to-yellow-400";
+            else loadBar.className = "h-2 rounded-full bg-gradient-to-r from-green-500 to-green-400";
+
+            const gaugeFill = document.getElementById('gaugeFill');
+            const alertBox = document.getElementById('overPressureAlert');
+            const pct = Math.min((P_total/inputs.maxP)*100, 100);
+            gaugeFill.style.width = pct + "%";
+            
+            if (P_total > inputs.maxP) {
+                gaugeFill.className = "gauge-fill bg-gradient-to-r from-red-600 to-red-500";
+                alertBox.classList.remove('hidden');
+            } else {
+                gaugeFill.className = "gauge-fill bg-gradient-to-r from-green-500 to-green-400";
+                alertBox.classList.add('hidden');
+            }
+
+            const Vol_pipe = (Area * inputs.L * 1000);
+            const Total_Vol = Vol_pipe + inputs.equipVol;
+            const Total_Weight = Total_Vol * (inputs.rho/1000);
+            const Total_Value = Total_Weight * inputs.price;
+            document.getElementById('totalVolume').innerText = Total_Vol.toFixed(1);
+            document.getElementById('totalWeight').innerText = Total_Weight.toFixed(1);
+            document.getElementById('totalValue').innerText = Total_Value.toLocaleString('th-TH', { maximumFractionDigits: 0 });
+
+            updateMainChart(P_pipe, P_static, inputs.phe, P_total, inputs.Q, pumpSpeed, inputs.jec);
+            updatePDFData(P_total, V, P_hyd, P_shaft, inputs.motor, load, Total_Vol, Total_Weight, Total_Value, inputs.jec);
+        }
+
+        function getProdInputs() {
+            return {
+                Q: parseFloat(document.getElementById('flowRate').value) || 0,
+                mu: parseFloat(document.getElementById('viscosity').value) || 0,
+                rho: parseFloat(document.getElementById('density').value) || 0,
+                D: parseFloat(document.getElementById('pipeID').value) || 0,
+                L: parseFloat(document.getElementById('length').value) || 0,
+                head: parseFloat(document.getElementById('head').value) || 0,
+                elbows: parseFloat(document.getElementById('elbows').value) || 0,
+                valves: parseFloat(document.getElementById('valves').value) || 0,
+                phe: parseFloat(document.getElementById('pheDrop').value) || 0,
+                motor: parseFloat(document.getElementById('selectedMotor').value) || 1,
+                maxP: parseFloat(document.getElementById('maxPressure').value) || 12,
+                price: parseFloat(document.getElementById('pricePerKg').value) || 0,
+                equipVol: parseFloat(document.getElementById('equipVolume').value) || 0,
+                jec: document.getElementById('jecModel').value
+            };
+        }
+
+        function updateMainChart(pipe, staticH, phe, totalP, currentQ, rpm, modelName) {
+            const ctx = document.getElementById('breakdownChart').getContext('2d');
+            if (mainChart) mainChart.destroy();
+
+            if (currentChartMode === 'breakdown') {
+                mainChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Friction', 'Static', 'PHE'],
+                        datasets: [{ data: [pipe, staticH, phe], backgroundColor: ['#3b82f6', '#10b981', '#f97316'], borderWidth: 0 }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, usePointStyle: true } } }, cutout: '75%' }
+                });
+            } else {
+                const sysData = [];
+                const maxGraphQ = currentQ * 1.5;
+                for(let q=0; q<=maxGraphQ; q+=maxGraphQ/10) {
+                    const p_dyn = (totalP - staticH - phe) * (q / currentQ); 
+                    sysData.push({x: q, y: staticH + phe + p_dyn});
+                }
+                const pumpData = [{x: currentQ, y: 0}, {x: currentQ, y: totalP * 1.5}];
+                mainChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        datasets: [
+                            { label: 'System', data: sysData, borderColor: '#ef4444', fill: false, tension: 0.4 },
+                            { label: `Pump (JEC ${modelName})`, data: pumpData, borderColor: '#3b82f6', borderDash: [5, 5], borderWidth: 2 }
+                        ]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'linear', title: {display: true, text: 'L/hr'} }, y: { title: {display: true, text: 'Bar'} } } }
+                });
+            }
+        }
+
+        // --- CIP CALC ---
+        function setOptimalCIP() {
+            const D_mm = parseFloat(document.getElementById('cipPipeID').value) || 47.5;
+            const Area = Math.PI * Math.pow(D_mm / 2000, 2);
+            const TargetQ_lph = 2.0 * Area * 3600000;
+            document.getElementById('cipFlowRate').value = Math.round(TargetQ_lph);
+            calculateCIP();
+        }
+
+        function calculateCIP() {
+            const Q_lph = parseFloat(document.getElementById('cipFlowRate').value) || 0;
+            const mu = parseFloat(document.getElementById('cipViscosity').value) / 1000 || 0.001;
+            const rho = parseFloat(document.getElementById('cipDensity').value) || 1000;
+            const D = (parseFloat(document.getElementById('cipPipeID').value) || 0) / 1000;
+            const L = parseFloat(document.getElementById('cipLength').value) || 0;
+            const H_stat = parseFloat(document.getElementById('cipHead').value) || 0;
+            const fittings = (parseFloat(document.getElementById('cipElbows').value)*30*D) + (parseFloat(document.getElementById('cipValves').value)*15*D);
+            const modelName = document.getElementById('inoxpaModel').value;
+
+            const Q = Q_lph / 3600000;
+            const Area = Math.PI * Math.pow(D/2, 2);
+            const V = Q / Area;
+            const Re = (rho * V * D) / mu;
+            
+            let f = (Re < 2300) ? 64/Re : 0.316 / Math.pow(Re, 0.25);
+            const h_f = f * ((L+fittings)/D) * (Math.pow(V,2)/(2*9.81));
+            const H_sys = H_stat + h_f;
+            const P_bar = (H_sys * rho * 9.81) / 1e5;
+
+            document.getElementById('cipVelocity').innerText = V.toFixed(2);
+            document.getElementById('cipTotalHead').innerText = H_sys.toFixed(1);
+            document.getElementById('cipPressure').innerText = P_bar.toFixed(2);
+            document.getElementById('reynoldsNum').innerText = Math.round(Re).toLocaleString();
+            
+            const status = (V >= 1.5 && Re > 4000);
+            const stText = document.getElementById('cipStatusText');
+            stText.innerText = status ? "Pass" : "Fail";
+            stText.className = status ? "text-4xl font-bold text-green-600" : "text-4xl font-bold text-red-600";
+            document.getElementById('cipIcon').innerHTML = status ? '<i class="fa-solid fa-circle-check"></i>' : '<i class="fa-solid fa-circle-xmark"></i>';
+            document.getElementById('cipIcon').className = status ? "text-6xl text-green-500" : "text-6xl text-red-500 animate-bounce";
+
+            updateCIPChart(H_sys, Q_lph, modelName, H_stat);
+        }
+
+        function updateCIPChart(OpHead, OpFlow, modelKey, staticHead) {
+            const ctx = document.getElementById('cipChart').getContext('2d');
+            if (cipChart) cipChart.destroy();
+            const pump = inoxpaModels[modelKey];
+            const maxQ = pump.maxFlow; 
+            const pumpCurve = []; const sysCurve = [];
+            const k_pump = pump.maxHead / Math.pow(maxQ, 2);
+            const k_sys = (OpHead - staticHead) / Math.pow(OpFlow, 2);
+
+            for(let q=0; q<=maxQ; q+=maxQ/20) {
+                const h_p = pump.maxHead - (k_pump * Math.pow(q, 2));
+                const h_s = staticHead + (k_sys * Math.pow(q, 2));
+                if(h_p >= 0) pumpCurve.push({x: q, y: h_p});
+                sysCurve.push({x: q, y: h_s});
+            }
+
+            cipChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        { label: `Pump: Inoxpa ${pump.name}`, data: pumpCurve, borderColor: '#10b981', tension: 0.4, borderWidth: 3 },
+                        { label: 'System Curve', data: sysCurve, borderColor: '#ef4444', borderDash: [5,5], borderWidth: 2 },
+                        { label: 'OP', data: [{x: OpFlow, y: OpHead}], backgroundColor: '#3b82f6', borderColor: '#fff', pointRadius: 8 }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'linear', title: {display: true, text: 'L/hr'} }, y: { title: {display: true, text: 'm'}, min: 0 } } }
+            });
+        }
+
+        // --- MIXING CALC ---
+        function updateMixFluid() {
+            const key = document.getElementById('mixFluidSelect').value;
+            if(fluids[key]) {
+                document.getElementById('mixViscosity').value = fluids[key].visc;
+                document.getElementById('mixDensity').value = fluids[key].dens;
+                calculateMixing();
+            }
+        }
+
+        function calculateMixing() {
+            const r = parseFloat(document.getElementById('tankRadius').value) || 0.5;
+            const h = parseFloat(document.getElementById('tankHeight').value) || 1.0;
+            const h_cone = parseFloat(document.getElementById('coneHeight').value) || 0; 
+            const visc = parseFloat(document.getElementById('mixViscosity').value);
+            const dens = parseFloat(document.getElementById('mixDensity').value);
+
+            const vol_cyl_m3 = Math.PI * Math.pow(r, 2) * h;
+            const vol_cone_m3 = (1/3) * Math.PI * Math.pow(r, 2) * h_cone;
+            const vol_total_m3 = vol_cyl_m3 + vol_cone_m3;
+            const vol_L = vol_total_m3 * 1000;
+            
+            document.getElementById('tankVolText').innerText = vol_L.toFixed(0) + " Liters";
+
+            let type = "Propeller";
+            let d_ratio = 0.3; 
+            let speed = 960;
+            let gear = "Direct Drive";
+            let pump = "Centrifugal Pump";
+            let pipe = "1.5\" - 2.0\"";
+            let powerFactor = 0.5;
+
+            if (visc > 100000) {
+                type = "Anchor / Helical";
+                d_ratio = 0.9;
+                speed = 25;
+                gear = "High Ratio Gearbox";
+                pump = "Twin Screw / Lobe";
+                pipe = "3.0\" - 4.0\"";
+                powerFactor = 10;
+            } else if (visc > 2000) {
+                type = "Pitched Blade Turbine";
+                d_ratio = 0.4;
+                speed = 150; 
+                gear = "Gear Motor";
+                pump = "Rotary Lobe Pump";
+                pipe = "2.0\" - 2.5\"";
+                powerFactor = 3;
+            } else {
+                type = "Marine Propeller";
+                d_ratio = 0.3;
+                speed = 960; 
+                gear = "Direct / High Speed";
+                pump = "Centrifugal Pump";
+                pipe = "1.5\" - 2.0\"";
+                powerFactor = 0.8;
+            }
+
+            const impellerDia = (2*r) * d_ratio;
+            const motorPower = Math.ceil((vol_total_m3 * powerFactor) * 10) / 10;
+            const finalMotorKw = Math.max(0.37, motorPower);
+            const torque = (finalMotorKw * 9550) / speed;
+
+            document.getElementById('recImpeller').innerText = type;
+            document.getElementById('recImpellerDia').innerText = impellerDia.toFixed(2);
+            document.getElementById('recMotor').innerText = finalMotorKw.toFixed(2);
+            document.getElementById('recSpeed').innerText = speed;
+            document.getElementById('recTorque').innerText = torque.toFixed(1);
+            document.getElementById('recGear').innerText = gear;
+            document.getElementById('recPump').innerText = pump;
+            document.getElementById('recPipe').innerText = pipe;
+
+            drawTank(r, h, h_cone, type, impellerDia);
+        }
+
+        function drawTank(r, h_cyl, h_cone, impType, impD) {
+            const canvas = document.getElementById('mixingCanvas');
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width;
+            const H = canvas.height;
+            ctx.clearRect(0,0,W,H);
+
+            const totalH_real = h_cyl + h_cone;
+            const scaleY = (H * 0.7) / totalH_real;
+            const scaleX = (W * 0.6) / (2*r);
+            const scale = Math.min(scaleX, scaleY);
+
+            const cylH_px = h_cyl * scale;
+            const coneH_px = h_cone * scale;
+            const tankW_px = (2*r) * scale;
+
+            const startX = (W - tankW_px)/2;
+            const startY = (H - (cylH_px + coneH_px))/2;
+
+            ctx.strokeStyle = "#475569";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(startX + tankW_px, startY);
+            ctx.lineTo(startX + tankW_px, startY + cylH_px);
+            ctx.lineTo(W/2, startY + cylH_px + coneH_px);
+            ctx.lineTo(startX, startY + cylH_px);
+            ctx.lineTo(startX, startY);
+            ctx.stroke();
+
+            ctx.fillStyle = "#bfdbfe";
+            ctx.globalAlpha = 0.6;
+            ctx.beginPath();
+            ctx.moveTo(startX, startY + cylH_px);
+            ctx.lineTo(startX + tankW_px, startY + cylH_px);
+            ctx.lineTo(W/2, startY + cylH_px + coneH_px);
+            ctx.fill();
+            ctx.fillRect(startX + 2, startY + (cylH_px * 0.2), tankW_px - 4, cylH_px * 0.8);
+            ctx.globalAlpha = 1.0;
+
+            const shaftEndY = startY + cylH_px + (coneH_px * 0.3); 
+            ctx.strokeStyle = "#94a3b8";
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(W/2, startY - 30);
+            ctx.lineTo(W/2, shaftEndY);
+            ctx.stroke();
+
+            ctx.fillStyle = "#3b82f6";
+            ctx.fillRect(W/2 - 20, startY - 50, 40, 40);
+
+            const impW_px = impD * scale;
+            const impY = shaftEndY; 
+            ctx.strokeStyle = "#e11d48";
+            ctx.fillStyle = "#e11d48";
+            ctx.lineWidth = 4;
+            
+            if(impType.includes("Anchor")) {
+                ctx.beginPath();
+                ctx.moveTo(W/2 - impW_px/2, impY - 50);
+                ctx.lineTo(W/2 - impW_px/2, impY);
+                ctx.quadraticCurveTo(W/2, impY + 15, W/2 + impW_px/2, impY);
+                ctx.lineTo(W/2 + impW_px/2, impY - 50);
+                ctx.stroke();
+            } else if (impType.includes("Propeller")) {
+                ctx.beginPath();
+                ctx.moveTo(W/2, impY);
+                ctx.lineTo(W/2 - impW_px/2, impY - 10);
+                ctx.lineTo(W/2 - impW_px/2, impY + 10);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(W/2, impY);
+                ctx.lineTo(W/2 + impW_px/2, impY - 10);
+                ctx.lineTo(W/2 + impW_px/2, impY + 10);
+                ctx.fill();
+            } else {
+                ctx.fillRect(W/2 - impW_px/2, impY - 10, impW_px, 20);
+            }
+            
+            ctx.fillStyle = "#334155";
+            ctx.font = "bold 12px JetBrains Mono";
+            ctx.fillText(`H: ${h_cyl}m`, startX - 50, startY + cylH_px/2);
+            ctx.fillText(`D: ${(2*r).toFixed(1)}m`, W/2 - 20, startY - 10);
+        }
+
+        function updatePDFData(P_total, V, P_hyd, P_shaft, motor, load, vol, weight, value, pumpName) {
+             const d = new Date();
+             document.getElementById('reportDate').innerText = d.toLocaleDateString('th-TH') + " " + d.toLocaleTimeString('th-TH');
+             document.getElementById('pdfTotalPressure').innerText = P_total.toFixed(2);
+             
+             const fKey = document.getElementById('fluidSelect').value;
+             document.getElementById('pdfProdName').innerText = fluids[fKey] ? fluids[fKey].name : "Custom Fluid";
+             document.getElementById('pdfFlow').innerText = document.getElementById('flowRate').value;
+             document.getElementById('pdfPumpModel').innerText = "JEC " + pumpName;
+
+             document.getElementById('pdfShaftPower').innerText = P_shaft.toFixed(2);
+             document.getElementById('pdfLoad').innerText = load.toFixed(1);
+             
+             const chartCanvas = document.getElementById('breakdownChart');
+             document.getElementById('pdfChartImg').src = chartCanvas.toDataURL("image/png");
+        }
+
+        function exportPDF() {
+            const element = document.getElementById('pdf-report');
+            element.style.display = 'block';
+            html2pdf().set({ margin: 0.5, filename: 'Pump_Sim_Report.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' } }).from(element).save().then(() => { element.style.display = 'none'; });
+        }
+    </script>
+</body>
+</html>
